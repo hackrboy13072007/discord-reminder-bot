@@ -7,7 +7,6 @@ const {
 } = require("discord.js");
 
 const cron = require("node-cron");
-const express = require("express");
 const fs = require("fs");
 
 
