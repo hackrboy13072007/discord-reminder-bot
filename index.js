@@ -143,8 +143,8 @@ cron.schedule("* * * * *", async () => {
     if (now >= r.nextTime && r.count < r.max) {
       const channel = await client.channels.fetch(r.channelId);
       channel.send(
-        `⏰ <@${r.userId}> **${r.note}** (${r.count + 1}/${r.max})`
-      );
+  `@everyone ⏰ <@${r.userId}> **${r.note}** (${r.count + 1}/${r.max})`
+);
 
       r.count++;
       r.nextTime = now + 60 * 1000;
