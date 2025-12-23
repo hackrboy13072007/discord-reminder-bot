@@ -9,7 +9,6 @@ const {
 const cron = require("node-cron");
 const fs = require("fs");
 
-
 // ===== CONFIG =====
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -34,16 +33,26 @@ const commands = [
   new SlashCommandBuilder()
     .setName("nhac")
     .setDescription("Tạo lịch nhắc")
-    .addUserOption(o =>
-      o.setName("nguoi").setDescription("Người được nhắc").setRequired(true))
+    .addRoleOption(o =>
+      o.setName("role")
+       .setDescription("Vai trò cần tag")
+       .setRequired(true))
     .addStringOption(o =>
-      o.setName("ngay").setDescription("YYYY-MM-DD").setRequired(true))
+      o.setName("ngay")
+       .setDescription("YYYY-MM-DD")
+       .setRequired(true))
     .addStringOption(o =>
-      o.setName("gio").setDescription("HH:mm").setRequired(true))
+      o.setName("gio")
+       .setDescription("HH:mm")
+       .setRequired(true))
     .addIntegerOption(o =>
-      o.setName("solan").setDescription("Số lần spam").setRequired(true))
+      o.setName("solan")
+       .setDescription("Số lần spam")
+       .setRequired(true))
     .addStringOption(o =>
-      o.setName("noidung").setDescription("Nội dung").setRequired(true)),
+      o.setName("noidung")
+       .setDescription("Nội dung")
+       .setRequired(true)),
 
   new SlashCommandBuilder()
     .setName("list")
@@ -53,10 +62,12 @@ const commands = [
     .setName("xoa")
     .setDescription("Xóa lịch")
     .addStringOption(o =>
-      o.setName("id").setDescription("ID lịch").setRequired(true))
+      o.setName("id")
+       .setDescription("ID lịch")
+       .setRequired(true))
 ].map(c => c.toJSON());
 
-// ===== REGISTER =====
+// ===== REGISTER COMMANDS =====
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 (async () => {
   await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
@@ -81,9 +92,8 @@ client.on("interactionCreate", async i => {
     return i.reply({ content: "❌ Không có quyền", ephemeral: true });
   }
 
-  // /nhac
   if (i.commandName === "nhac") {
-    const user = i.options.getUser("nguoi");
+    const role = i.options.getRole("role");
     const date = i.options.getString("ngay");
     const time = i.options.getString("gio");
     const note = i.options.getString("noidung");
@@ -94,20 +104,20 @@ client.on("interactionCreate", async i => {
 
     reminders.push({
       id,
-      userId: user.id,
+      roleId: role.id,
       channelId: i.channelId,
       note,
+      date,
+      time,
       nextTime: start,
       count: 0,
       max: solan
     });
 
     save();
-
     return i.reply(`✅ Đã tạo lịch ID **${id}**`);
   }
 
-  // /list
   if (i.commandName === "list") {
     if (reminders.length === 0) {
       return i.reply("📭 Không có lịch");
@@ -115,12 +125,11 @@ client.on("interactionCreate", async i => {
 
     return i.reply(
       reminders.map(r =>
-        `🆔 ${r.id} | <@${r.userId}> | ${r.count}/${r.max}`
+        `🆔 ${r.id} | <@&${r.roleId}> | ${r.date} ${r.time} | ${r.count}/${r.max}`
       ).join("\n")
     );
   }
 
-  // /xoa
   if (i.commandName === "xoa") {
     const id = i.options.getString("id");
     const before = reminders.length;
@@ -135,16 +144,24 @@ client.on("interactionCreate", async i => {
   }
 });
 
-// ===== CRON =====
+// ===== CRON (MỖI PHÚT) =====
 cron.schedule("* * * * *", async () => {
   const now = Date.now();
 
   for (const r of reminders) {
     if (now >= r.nextTime && r.count < r.max) {
       const channel = await client.channels.fetch(r.channelId);
-      channel.send(
-  `@everyone ⏰ <@${r.userId}> **${r.note}** (${r.count + 1}/${r.max})`
-);
+      const [year, month, day] = r.date.split("-");
+
+      channel.send({
+        content:
+          `<@&${r.roleId}> ⏰\n` +
+          `📅 ${day}/${month}/${year} lúc ${r.time}\n` +
+          `📌 **${r.note}** (${r.count + 1}/${r.max})`,
+        allowedMentions: {
+          roles: [r.roleId]
+        }
+      });
 
       r.count++;
       r.nextTime = now + 60 * 1000;
